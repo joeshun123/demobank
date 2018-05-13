@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><soapenv:Body><NumberToWords xmlns="http://www.dataaccess.com/webservicesserver/"><ubiNum>100</ubiNum></NumberToWords></soapenv:Body></soapenv:Envelope>
+
+
+
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:tem="http://tempuri.org/">
+   <soap:Header/>
+   <soap:Body>
+      <tem:serviceRequestWithMessageType>
+         <!--Optional:-->
+         <tem:serviceName>SECURITY_SVC</tem:serviceName>
+         <!--Optional:-->
+         <tem:messageType>Authenticate</tem:messageType>
+         <!--Optional:-->
+         <tem:message><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="yes"?><request><company>DPW</company><ip>127.0.0.1</ip><locale>en-US</locale><reference>20180511091453</reference><user>yarqa02</user><msg_body><query><ip>127.0.0.1</ip><password>welcome</password><userid>WEB_APP_YARQA</userid></query></msg_body></request>]]></tem:message>
+      </tem:serviceRequestWithMessageType>
+   </soap:Body>
+</soap:Envelope>
+
+
+
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+   <soap:Body>
+      <serviceRequestWithMessageTypeResponse xmlns="http://tempuri.org/">
+         <serviceRequestWithMessageTypeResult><![CDATA[<?xml version="1.0" encoding="UTF-8"?><response><ws_return_code>0</ws_return_code><reference>20180511091453</reference><time>20180511235705652</time><msg_body>a478f7ef-51e4-4e55-b3f3-108eb1671c72</msg_body></response>]]></serviceRequestWithMessageTypeResult>
+      </serviceRequestWithMessageTypeResponse>
+   </soap:Body>
+</soap:Envelope>
+
+
+https://github.com/matsev/spring-testing/blob/master/src/test/java/com/jayway/repository/EmbeddedDbJavaConfig.java
+https://github.com/mkyong/spring-embedded-database
+https://www.mkyong.com/spring/spring-embedded-database-examples/
+https://www.mkyong.com/spring/spring-view-content-of-hsqldb-embedded-database/
+https://stackoverflow.com/questions/4579078/how-to-use-hsqldb-in-oracle-query-syntax-mode
+https://stackoverflow.com/questions/18331203/best-way-to-create-schema-in-embedded-hsql-database
+https://www.programcreek.com/java-api-examples/?api=org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
+https://github.com/opentable/wiremock-body-transformer
