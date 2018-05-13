@@ -35,3 +35,6 @@ https://stackoverflow.com/questions/4579078/how-to-use-hsqldb-in-oracle-query-sy
 https://stackoverflow.com/questions/18331203/best-way-to-create-schema-in-embedded-hsql-database
 https://www.programcreek.com/java-api-examples/?api=org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType
 https://github.com/opentable/wiremock-body-transformer
+http://www.briansjavablog.com/2016/05/an-introduction-to-wiremock.html
+http://buildscientist.com/2015/dont-let-your-soap-make-a-mockery-out-of-you/
+
