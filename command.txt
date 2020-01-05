@@ -1,0 +1,131 @@
+1.	list all containers (docker ps)
+	docker container ls --all
+
+2.	list all compose containers (docker-compose ps)
+3.	pull ksql image
+	docker pull confluentinc/cp-ksql-cli
+
+4.	kill all containers (powershell)
+	docker ps -q | % { docker stop $_ }
+	docker container kill $(docker ps -q)
+	
+//check status
+docker container ls -a -s
+
+//Print a container¡¦s logs.
+docker container logs my_container
+docker container inspect my_container
+
+//check ip
+docker inspect docker inspect 2c66b072d535 | findstr '"IPAddress"'
+
+//Jump into the schema-registry container
+docker-compose exec schema-registry bash
+
+//Connect to ksql
+docker-compose exec ksql-cli ksql "http://ksql-server:8088"
+
+//shutdown
+docker-compose down
+
+stop all containers:
+docker kill $(docker ps -q)
+
+remove all containers
+docker rm $(docker ps -a -q)
+
+remove all docker images
+docker rmi $(docker images -q)
+
+remove all containers forcefully
+docker rm -f $(docker ps -a -q)
+
+remove all docker images forcefully
+docker rmi -f $(docker images -q)
+
+/bin
+/bin
+/usr/bin
+/drives/c/WINDOWS
+/drives/c/WINDOWS/system32
+
+//login to kakfa machine
+docker-compose exec kafka bash
+//check topics
+kafka-topics --zookeeper zookeeper:2181 --list
+kafka-topics --zookeeper zookeeper:2181 --create --partitions 1 --replication-factor 1 --topic USERS
+kafka-topics --zookeeper zookeeper:2181 --create --partitions 1 --replication-factor 1 --topic USERPROFILE
+//test put
+kafka-console-producer --broker-list kafka:9092 --topic USERS
+kafka-console-producer --broker-list kafka:9092 --topic USERPROFILE << EOF
+{"userid":1000,"firstname":"Alison","lastname":"Smith","countrycode":"GB","rating":4.7}
+{"userid":1001,"firstname":"Bob","lastname":"Smith","countrycode":"US","rating":2.1}
+EOF
+
+
+//ksql command:
+list topics;
+show topics;
+print 'USERS';
+print 'USERS' from beginning;
+print 'USERS' from beginning limit 2;
+print 'USERS' from beginning interval 5 limit 2;//record1 and 2->interval 5 seconds
+//
+create stream users_stream (name VARCHAR, countrycode VARCHAR) WITH (KAFKA_TOPIC='USERS',VALUE_FORMAT='DELIMITED');
+create stream userprofile (userid INT, firstname VARCHAR, lastname VARCHAR, countrycode VARCHAR, rating DOUBLE) WITH (KAFKA_TOPIC='USERPROFILE',VALUE_FORMAT='JSON');
+list streams;
+show streams;
+//
+select name, countrycode from users_stream;
+select name, countrycode from users_stream limit 2;
+select countrycode, count(*) from users_stream group by countrycode;
+select userid,firstname,lastname,countrycode,rating from userprofile;
+
+//read from the begining of time
+SET 'auto.offset.reset'='earliest';
+
+//
+drop stream if exists users_stream delete topic;
+
+
+//desc stream
+describe userprofile;
+describe extended userprofile;
+
+//datagen
+ksql-datagen schema=./datagen/userprofile.avro format=json topic=USERPROFILE key=userid maxInterval=5000 iterations=10
+
+//run scxript
+run script './user_profile_pretty.ksql';
+
+//termine query
+termine query xx
+
+kafka-topics --zookeeper zookeeper:2181 --create --partitions 1 --replication-factor 1 --topic COUNTRY-CSV
+kafka-console-producer --broker-list kafka:9082 --topic COUNTRY-CSV --property "parse.key=true" --property "key.separator=:"
+CREATE TABLE COUNTRYTABLE (countrycode VARCHAR, countryname VARCHAR) WITH (KAFKA_TOPIC='COUNTRY-CSV', VALUE_FORMAT='DELIMITED', KEY='countrycode');
+show tables;
+
+//create new stream based on existing stream join
+create stream up_joined as
+	select up.first.name || ' ' || ucase(up.lastname)
+	from USERPROFILE up left join COUNTRYTABLE ct on ct.countrycode = up.countrycode;
+
+
+kafka-topics --zookeeper zookeeper:2181 --create --partitions 1 --replication-factor 1 --topic COMPLAINTS_CSV
+create stream complaints_csv (customer_name VARCHAR, complaint_type VARCHAR, trip_cost DOUBLE, new_customer BOOLEAN) WITH (VALUE_FORMAT='DELIMITED', KAFKA_TOPIC='COMPLAINTS_CSV')';
+
+//ksql log
+//confluent log ksql-server
+docker logs -f <ksql-server container Id>
+
+kafka-avro-console-producer --broker-list localhost:9092 --topic COMPLAINTS_AVRO --property value.schedule='xxx'
+create stream complaints_avro with (kafka_topic='COMPLAINTS_AVRO', value_format='AVRO');
+
+
+
+stream weather<-kafka_topic='WEATHERNESTED',JSON
+stream weatherraw<-select from weather,AVRO,
+stream weatherrekeyed as select * from weatherraw partition by city_name
+table weathernow <-kafka_topic='WEATHERREKEYED'/value_format-'AVRO'/key='CITY_NAME'
+
