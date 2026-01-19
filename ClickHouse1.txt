@@ -1,0 +1,54 @@
+In the ELT + Dictionary approach, you do not technically "need" a View to store the data, but you must have a View to query it correctly.In ClickHouse, the View serves as the "logic layer" that joins your raw tables and picks the latest data version. Without it, your application would have to write complex SQL joins every time it needs a report.Here is the complete design document in Markdown format.CQRS Read-Side Design: Postgres vs. ClickHouseThis document outlines two strategies for synchronizing data from a PostgreSQL Write DB to a ClickHouse Read DB at a scale of 10,000 writes/second.1. Approach: Query-Enrichment (PostgreSQL)The ReadServer performs the join by querying a Postgres View before sending the "enriched" (flattened) data to ClickHouse.ClickHouse Table DesignA single "Wide Table" stores the fully denormalized records.SQLCREATE TABLE orders_report (
+    DetailId UInt64,
+    OrderId UInt64,
+    OrderCode String,
+    SKU String,
+    CustomerCode String,
+    Qty Int32,
+    Version UInt64,
+    IsDeleted UInt8
+) ENGINE = ReplacingMergeTree(Version)
+ORDER BY (DetailId);
+Java ReadServer LogicUses batching to reduce the "N+1" query load on Postgres.Javapublic void processBatch(List<DetailEvent> events) {
+    List<Long> ids = events.stream().map(e -> e.id).collect(toList());
+    
+    // Batch query the Postgres View
+    String sql = "SELECT * FROM view_order_enrichment WHERE DetailId IN (:ids)";
+    List<EnrichedRow> data = postgresTemplate.query(sql, Map.of("ids", ids), mapper);
+
+    // Insert enriched rows into ClickHouse
+    clickHouseTemplate.batchUpdate("INSERT INTO orders_report ...", data);
+}
+Reporting QueriesListing: SELECT * FROM orders_report FINAL WHERE IsDeleted = 0;Aggregation: SELECT CustomerCode, sum(Qty) FROM orders_report FINAL GROUP BY CustomerCode;2. Approach: ELT + Dictionary (ClickHouse)The ReadServer streams raw tables. ClickHouse uses a Memory Dictionary to handle joins and a View to present the final report.ClickHouse Storage & Dictionary DesignSQL-- Raw Landing Tables
+CREATE TABLE raw_master (OrderId UInt64, OrderCode String, Version UInt64) 
+ENGINE = ReplacingMergeTree(Version) ORDER BY OrderId;
+
+CREATE TABLE raw_detail (DetailId UInt64, OrderId UInt64, SKU String, CustomerCode String, Qty Int32, Version UInt64, IsDeleted UInt8) 
+ENGINE = ReplacingMergeTree(Version) ORDER BY DetailId;
+
+-- Memory Dictionary (The Join Engine)
+CREATE DICTIONARY master_dict (
+    OrderId UInt64,
+    OrderCode String
+)
+PRIMARY KEY OrderId
+SOURCE(CLICKHOUSE(TABLE 'raw_master'))
+LAYOUT(SPARSE_HASHED()) 
+LIFETIME(MIN 0 MAX 60);
+ClickHouse View Design (The Logic Layer)The View is essential to hide the complexity of the dictionary lookup and versioning.SQLCREATE VIEW report_order_details AS
+SELECT 
+    DetailId,
+    dictGet('master_dict', 'OrderCode', OrderId) AS OrderCode,
+    SKU,
+    CustomerCode,
+    Qty
+FROM raw_detail 
+FINAL 
+WHERE IsDeleted = 0;
+Java ReadServer LogicA simple "pipe" that moves raw data from Kafka to ClickHouse.Javapublic void handleEvents(List<Event> events) {
+    // Direct batch inserts into raw tables
+    clickHouse.batchInsert("raw_master", filterMasters(events));
+    clickHouse.batchInsert("raw_detail", filterDetails(events));
+}
+3. Dictionary RAM Control StrategyTo manage memory consumption as your data grows, use these layout strategies:Small Dataset (< 10M rows): Use HASHED(). It is the fastest and uses approximately 32 bytes per entry.Large Dataset (10M - 100M rows): Use SPARSE_HASHED(). This reduces RAM usage by 60% with negligible impact on lookup speed.Massive Dataset (> 100M rows): Use CACHE(SIZE 5000000). This caps RAM usage to a fixed number of records (e.g., 5 million), swapping older records to disk automatically.Summary ComparisonFeatureQuery-Enrichment (Postgres)ELT + Dictionary (ClickHouse)Write DB LoadModerate (Enrichment Queries)NoneJava ComplexityModerate (Join Logic)Low (Streaming Only)Data IntegrityHighHigh (Dynamic Lookups)ScalabilityLimited by Postgres CPUHigh (ClickHouse Optimized)
+

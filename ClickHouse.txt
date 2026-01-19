@@ -1,0 +1,84 @@
+Regarding the CQRS design pattern, the Read part, we are now evaluating which database should we use.
+Let's say in Write side. We have below tables:
+1. Master table
+OrderId	OrderCode
+1	A
+2	B
+
+2. Detail table
+DetailId	OrderId	SKU	CustomerCode	Qty
+1		1	AA	AAA		10
+2		1	BB	BBB		20
+3		2	CC	CCC		30
+4		2	AA	BBB		40
+
+Now let's say we have 2 reports for Read side:
+Report#1:	listing of order details
+		DetailId	OrderId	OrderCode	SKU	CustomerCode	Qty
+		1		1	A		AA	AAA		10
+		2		1	A		BB	BBB		20
+		3		2	B		CC	CCC		30
+		4		2	B		AA	BBB		40
+
+Report#2:	listing of details by CustomerCode
+		CustomerCode	Qty	DetailCount
+		AAA		10	1
+		BBB		60	2
+		CCC		30	1
+
+The architecture:
+1. There is a Write DB, which has a event store table. The change to Master/Detail table and the append of event store table is in a transaction.
+2. There is a CDC setup to watch the append to event store table and hence send out Kafka event.
+3. There is a ReadServer, which receive the Kafka event and start to apply change to ClickHouse.
+
+let's say we use ClickHouse as the Read DB: How should the ReadServer design to cater below cases:
+1. When we add record in Master/Detail
+2. When we update record in Master or Detail
+3. When we delete record in Detail
+-------------------------------------
+
+1. Design a new base table in CH:
+CREATE TABLE OrderReadModel (
+    DetailId UInt64,
+    OrderId UInt64,
+    OrderCode String,
+    SKU String,
+    CustomerCode String,
+    Qty Int32,
+    Version UInt64,     -- Used to handle out-of-order Kafka events
+    IsDeleted UInt8      -- 0 for active, 1 for deleted
+) ENGINE = ReplacingMergeTree(Version)
+ORDER BY (DetailId);
+
+2. Case 1: Adding Records (Master/Detail)
+Insert into OrderReadModel
+
+3. Case 2: Updating Records
+<Version Insert>: Insert a new OrderReadModel with higher version
+
+4. Case 3: Deleting Records
+<Soft Delete> Insert a new OrderReadModel with higher version + isDeleted=1
+
+Query
+-------------------------------------
+FINAL=>get the most recent Version
+1.	SELECT DetailId, OrderId, OrderCode, SKU, CustomerCode, Qty 
+	FROM OrderReadModel FINAL 
+	WHERE IsDeleted = 0;
+
+2.	SELECT CustomerCode, SUM(Qty) as TotalQty, COUNT(DetailId) as DetailCount
+	FROM OrderReadModel FINAL
+	WHERE IsDeleted = 0
+	GROUP BY CustomerCode;
+
+
+I actually have another idea:
+"Query-Based Enrichment"/"Pull-Aside Pattern"
+1. How about for each report, we define a table. E.g. Report1 and Report2 table defined in ClickHouse.
+2. In the Write side database, we install 2 DB view, 1 for each report.
+3. When ReadServer receive kafka event, it then query the Write database for each DB view (only once) with where cause. Since each event will have primary key, and the query will then with where primary key=?, means it will be fast and lightweight.
+4. Now we have the changed data, then directly update to ClickHouse (insert with higher version)
+This way, we can leverage Write DB for only once to produce delta data, and insert/update to Read side.
+
+
+Query-Enrichment (Postgres)	ELT + Dictionary (ClickHouse)
